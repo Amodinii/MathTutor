@@ -1,0 +1,9 @@
+langchain
+langchain-community
+langgraph
+langchain-astradb
+langchain-groq
+dotenv
+pillow
+transformers
+beautifulsoup4
