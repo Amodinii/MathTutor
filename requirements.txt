@@ -7,3 +7,4 @@ dotenv
 pillow
 transformers
 beautifulsoup4
+mcp
