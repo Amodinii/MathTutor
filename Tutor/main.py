@@ -1,6 +1,10 @@
-from Tutor.Agents.Reasoning import build_reasoning_agent
+import asyncio
+from Tutor.Agents.Reasoning import ReasoningAgent
 
-agent = build_reasoning_agent()
-response = agent("What is the derivative of x^2 * sin(x)?")
+async def main():
+    async with ReasoningAgent("llama3-8b-8192") as agent:
+        response = await agent.run("What is the derivative of x^2 * sin(x)?")
+        print(response)
 
-print(response["result"])
+if __name__ == "__main__":
+    asyncio.run(main())

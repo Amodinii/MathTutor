@@ -10,84 +10,158 @@ from Tutor.Exception.Exception import TutorException
 class AgentState(dict):
     pass
 
-# Define node: Retrieve from VectorDB
-def retrieve_from_vector_db(state: AgentState) -> AgentState:
+# Async node: Retrieve from VectorDB
+async def retrieve_from_vector_db(state: AgentState) -> AgentState:
     question = state["question"]
     try:
         vector_client = state["vector_client"]
-        docs = vector_client.retrieve_documents(query=question)
+        docs = await vector_client.retrieve_documents(query=question)
         logger.info(f"[Reasoning Agent] Retrieved {len(docs)} docs from Vector DB.")
         state["documents"] = docs
+        state["has_documents"] = len(docs) > 0
         return state
     except Exception as e:
-        raise TutorException(e, sys)
+        logger.error(f"[Reasoning Agent] Error retrieving from vector DB: {e}")
+        state["documents"] = []
+        state["has_documents"] = False
+        return state
 
-# Define router
+# Router node (sync, because it's just logic on state)
 def router(state: AgentState) -> str:
-    docs = state.get("documents", [])
-    if docs:
-        logger.info("[Reasoning Agent] Routing to Reasoning step.")
+    has_docs = state.get("has_documents", False)
+    if has_docs:
+        logger.info("[Reasoning Agent] Routing to Reasoning step with Vector DB docs.")
         return "reason"
     else:
         logger.info("[Reasoning Agent] Routing to Web Search as fallback.")
         return "web_search"
 
-# Define node: Fallback to Web Search
-def retrieve_from_web(state: AgentState) -> AgentState:
+# Async node: Fallback to Web Search
+async def retrieve_from_web(state: AgentState) -> AgentState:
     question = state["question"]
     try:
         web_client = state["web_client"]
-        search_results = web_client.search(question)
+        search_results = await web_client.search(query=question)
         logger.info(f"[Reasoning Agent] Retrieved fallback results from Web Search.")
         state["documents"] = search_results
+        state["has_documents"] = True
         return state
     except Exception as e:
+        logger.error(f"[Reasoning Agent] Error retrieving from web search: {e}")
         raise TutorException(e, sys)
 
-# Define node: Reasoning
-def reasoning_node(state: AgentState) -> AgentState:
+# Async node: Reasoning
+async def reasoning_node(state: AgentState) -> AgentState:
     try:
         model = state["reasoning_model"]
         question = state["question"]
-        documents = state["documents"]
-        result = model.reason(question=question)
+        documents = state.get("documents", [])
+        
+        # Pass both question and retrieved documents to reasoning model
+        result = await model.reason(question=question, documents=documents)
         logger.info("[Reasoning Agent] Completed reasoning.")
         state["result"] = result
         return state
     except Exception as e:
+        logger.error(f"[Reasoning Agent] Error in reasoning: {e}")
         raise TutorException(e, sys)
 
-# Construct the Reasoning Agent
-def build_reasoning_agent(model_name="llama3-8b-8192", vector_url="http://localhost:5000", web_url="http://localhost:6000"):
-    try:
-        vector_client = VectorDBClient(server_url=vector_url)
-        web_client = WebSearchClient(server_url=web_url)
-        reasoning_model = ReasoningModel(model_name=model_name, vector_db=vector_client)
+class ReasoningAgent:
+    def __init__(self, model_name="llama3-8b-8192"):
+        self.model_name = model_name
+        self.vector_client = None
+        self.web_client = None
+        self.reasoning_model = None
+        self.app = None
 
-        workflow = StateGraph(AgentState)
-        workflow.add_node("vector_db", retrieve_from_vector_db)
-        workflow.add_node("web_search", retrieve_from_web)
-        workflow.add_node("reason", reasoning_node)
+    async def initialize(self):
+        """Initialize and connect all components"""
+        try:
+            # Initialize async MCP clients
+            self.vector_client = VectorDBClient()
+            self.web_client = WebSearchClient()
 
-        workflow.set_entry_point("vector_db")
-        workflow.add_conditional_edges("vector_db", router, {
-            "web_search": "web_search",
-            "reason": "reason"
-        })
-        workflow.add_edge("web_search", "reason")
-        workflow.add_edge("reason", END)
+            await self.vector_client.connect()
+            await self.web_client.connect()
 
-        app = workflow.compile()
+            # Initialize reasoning model (without passing vector_client to avoid duplication)
+            self.reasoning_model = ReasoningModel(model_name=self.model_name)
 
-        def run_agent(question: str):
+            # Build LangGraph workflow
+            workflow = StateGraph(AgentState)
+            workflow.add_node("vector_db", retrieve_from_vector_db)
+            workflow.add_node("web_search", retrieve_from_web)
+            workflow.add_node("reason", reasoning_node)
+
+            workflow.set_entry_point("vector_db")
+            workflow.add_conditional_edges("vector_db", router, {
+                "reason": "reason",
+                "web_search": "web_search"
+            })
+            workflow.add_edge("web_search", "reason")
+            workflow.add_edge("reason", END)
+
+            self.app = workflow.compile()
+            logger.info("[Reasoning Agent] Successfully initialized.")
+
+        except Exception as e:
+            await self.cleanup()
+            raise TutorException(e, sys)
+
+    async def run(self, question: str):
+        """Run the reasoning agent on a question"""
+        if not self.app:
+            raise TutorException("Agent not initialized. Call initialize() first.", sys)
+        
+        try:
             state = AgentState({
                 "question": question,
-                "vector_client": vector_client,
-                "web_client": web_client,
-                "reasoning_model": reasoning_model
+                "vector_client": self.vector_client,
+                "web_client": self.web_client,
+                "reasoning_model": self.reasoning_model
             })
-            return app.invoke(state)
+            
+            result = await self.app.ainvoke(state)
+            return result.get("result")
+            
+        except Exception as e:
+            logger.error(f"[Reasoning Agent] Error running agent: {e}")
+            raise TutorException(e, sys)
 
+    async def cleanup(self):
+        """Clean up resources"""
+        try:
+            if self.vector_client:
+                await self.vector_client.close()
+            if self.web_client:
+                await self.web_client.close()
+            logger.info("[Reasoning Agent] Cleaned up resources.")
+        except Exception as e:
+            logger.error(f"[Reasoning Agent] Error during cleanup: {e}")
+
+    async def __aenter__(self):
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.cleanup()
+
+# Convenience function for backward compatibility
+async def build_reasoning_agent(model_name="llama3-8b-8192"):
+    """
+    Build and return a reasoning agent runner function.
+    Note: Remember to properly clean up resources when done.
+    """
+    try:
+        agent = ReasoningAgent(model_name)
+        await agent.initialize()
+        
+        async def run_agent(question: str):
+            return await agent.run(question)
+        
+        # Attach cleanup method to the runner for manual cleanup
+        run_agent.cleanup = agent.cleanup
+        
         return run_agent
 
     except Exception as e:
