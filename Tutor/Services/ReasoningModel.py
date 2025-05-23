@@ -1,4 +1,3 @@
-import re
 import sys
 from Tutor.Logging.Logger import logger
 from Tutor.Exception.Exception import TutorException
@@ -7,25 +6,14 @@ from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
 from langchain.prompts.chat import ChatPromptTemplate
 
-
-class Response(BaseModel):
-    reason: str = Field(description="The mathematical reasoning done to solve the question")
-    correct_answer: str = Field(description="Answer to the question")
-
-
 class ReasoningModel:
-    def __init__(self, model_name: str, vector_db):
+    def __init__(self, model_name: str):
         try:
-            self.vector_db = vector_db
-
             self.llm = ChatGroq(
                 model=model_name,
                 temperature=0.3,
                 max_retries=2
             )
-
-            self.parser = JsonOutputParser(pydantic_object=Response)
-
             system_message = '''
                 You are an expert in solving mathematical questions with precision using formal methods. 
                 Your main focus involves solving math problems accurately using those formal methods.
@@ -41,6 +29,7 @@ class ReasoningModel:
                 - "reason": full step-by-step reasoning
                 - "correct_answer": final answer
             '''
+
             human_message = "The mathematical question is {question}, and the documents are {documents}."
 
             self.prompt = ChatPromptTemplate.from_messages([
@@ -54,19 +43,13 @@ class ReasoningModel:
             logger.error("Error initializing reasoning model.")
             raise TutorException(e, sys)
 
-    async def retrieve_documents(self, question: str):
+    async def reason(self, question: str, documents: list):
         try:
-            docs = await self.vector_db.retrieve_documents(query=question, threshold=0.5, num_results=5)
-            return docs
-        except Exception as e:
-            logger.error("Error retrieving documents.")
-            raise TutorException(e, sys)
-
-    async def reason(self, question: str):
-        try:
-            docs = await self.retrieve_documents(question)
-            chain = self.prompt | self.llm | self.parser
-            response = await chain.ainvoke({"question": question, "documents": docs})
+            chain = self.prompt | self.llm
+            response = await chain.ainvoke({
+                "question": question,
+                "documents": documents
+            })
             return response
         except Exception as e:
             logger.error("Error reasoning with Groq.")

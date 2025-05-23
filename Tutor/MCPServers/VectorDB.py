@@ -2,22 +2,29 @@
 This file is essentially used to create a MCP server that provides our VectorDB service.
 '''
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from mcp.server.fastmcp import FastMCP
 from Tutor.Services.VectorStore import VectorStore
 from Tutor.Logging.Logger import logger
 from Tutor.Exception.Exception import TutorException
 
 class VectorDBServer:
-    def __init__(self, model_name: str):
+    def __init__(self):
         try:
-            self.store = VectorStore(model_name=model_name)
+            logger.info("Initializing VectorDB MCP Server...")
+            logger.info("Creating VectorStore instance...")
+            self.store = VectorStore(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            logger.info("VectorStore instance created successfully.")
+            logger.info("Creating FastMCP instance...")
             self.mcp = FastMCP("vector-db")
-            logger.info(f" [VectorDB MCP Server] VectorDB MCP Server initialized with model: {model_name}")
+            logger.info("FastMCP instance created successfully.")
+            logger.info(f" [VectorDB MCP Server] VectorDB MCP Server initialized with model: sentence-transformers/all-MiniLM-L6-v2")
         except TutorException as e:
             logger.error(f" [VectorDB MCP Server] Failed to initialize VectorDB MCP Server")
             raise TutorException(e, sys)
 
-        @self.mcp.tool
+        @self.mcp.tool()
         def retrieve_documents(query: str, threshold: float = 0.5, num_results: int = 5):
             """
             Retrieve relevant documents from the vector store using similarity search.
@@ -43,7 +50,17 @@ class VectorDBServer:
     def serve(self):
         try:
             logger.info(" [VectorDB MCP Server] Starting VectorDB MCP Server...")
-            self.mcp.serve()
+            self.mcp.run(transport='stdio')
         except TutorException as e:
             logger.error(f" [VectorDB MCP Server] Failed to start VectorDB MCP Server")
             raise TutorException(e, sys)
+
+def main():
+    logger.info("main() function of vector db server called")
+    server = VectorDBServer()
+    logger.info("VectorDBServer instance created")
+    server.serve()
+
+
+if __name__ == "__main__":
+    main()

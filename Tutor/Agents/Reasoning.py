@@ -1,4 +1,5 @@
 import sys
+from typing import TypedDict, List, Any, Optional
 from langgraph.graph import StateGraph, END
 from Tutor.MCPClients.VectorDB import VectorDBClient
 from Tutor.MCPClients.WebSearch import WebSearchClient
@@ -6,15 +7,33 @@ from Tutor.Services.ReasoningModel import ReasoningModel
 from Tutor.Logging.Logger import logger
 from Tutor.Exception.Exception import TutorException
 
-# Define state
-class AgentState(dict):
-    pass
+# Define state with proper typing
+class AgentState(TypedDict):
+    question: str
+    vector_client: Optional[Any]
+    web_client: Optional[Any]
+    reasoning_model: Optional[Any]
+    documents: Optional[List[Any]]
+    has_documents: Optional[bool]
+    result: Optional[Any]
 
 # Async node: Retrieve from VectorDB
 async def retrieve_from_vector_db(state: AgentState) -> AgentState:
-    question = state["question"]
+    question = state.get("question")
+    if not question:
+        logger.error("[Reasoning Agent] No question provided to vector DB retrieval")
+        state["documents"] = []
+        state["has_documents"] = False
+        return state
+        
     try:
-        vector_client = state["vector_client"]
+        vector_client = state.get("vector_client")
+        if not vector_client:
+            logger.error("[Reasoning Agent] No vector client available")
+            state["documents"] = []
+            state["has_documents"] = False
+            return state
+            
         docs = await vector_client.retrieve_documents(query=question)
         logger.info(f"[Reasoning Agent] Retrieved {len(docs)} docs from Vector DB.")
         state["documents"] = docs
@@ -38,9 +57,17 @@ def router(state: AgentState) -> str:
 
 # Async node: Fallback to Web Search
 async def retrieve_from_web(state: AgentState) -> AgentState:
-    question = state["question"]
+    question = state.get("question")
+    if not question:
+        logger.error("[Reasoning Agent] No question provided to web search")
+        raise TutorException("No question provided to web search", sys)
+        
     try:
-        web_client = state["web_client"]
+        web_client = state.get("web_client")
+        if not web_client:
+            logger.error("[Reasoning Agent] No web client available")
+            raise TutorException("No web client available", sys)
+            
         search_results = await web_client.search(query=question)
         logger.info(f"[Reasoning Agent] Retrieved fallback results from Web Search.")
         state["documents"] = search_results
@@ -53,9 +80,17 @@ async def retrieve_from_web(state: AgentState) -> AgentState:
 # Async node: Reasoning
 async def reasoning_node(state: AgentState) -> AgentState:
     try:
-        model = state["reasoning_model"]
-        question = state["question"]
+        model = state.get("reasoning_model")
+        question = state.get("question")
         documents = state.get("documents", [])
+        
+        if not model:
+            logger.error("[Reasoning Agent] No reasoning model available")
+            raise TutorException("No reasoning model available", sys)
+            
+        if not question:
+            logger.error("[Reasoning Agent] No question provided to reasoning")
+            raise TutorException("No question provided to reasoning", sys)
         
         # Pass both question and retrieved documents to reasoning model
         result = await model.reason(question=question, documents=documents)
@@ -113,15 +148,23 @@ class ReasoningAgent:
         if not self.app:
             raise TutorException("Agent not initialized. Call initialize() first.", sys)
         
+        if not question or not question.strip():
+            raise TutorException("Question cannot be empty", sys)
+        
         try:
-            state = AgentState({
-                "question": question,
-                "vector_client": self.vector_client,
-                "web_client": self.web_client,
-                "reasoning_model": self.reasoning_model
-            })
+            # Create initial state with proper structure
+            initial_state = AgentState(
+                question=question.strip(),
+                vector_client=self.vector_client,
+                web_client=self.web_client,
+                reasoning_model=self.reasoning_model,
+                documents=None,
+                has_documents=None,
+                result=None
+            )
             
-            result = await self.app.ainvoke(state)
+            logger.info(f"[Reasoning Agent] Starting with question: {question[:100]}...")
+            result = await self.app.ainvoke(initial_state)
             return result.get("result")
             
         except Exception as e:
