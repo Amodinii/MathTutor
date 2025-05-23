@@ -2,8 +2,7 @@ import os
 import sys
 from dotenv import load_dotenv
 load_dotenv()
-
-from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from Tutor.Logging.Logger import logger
 from Tutor.Exception.Exception import TutorException
 
@@ -17,10 +16,7 @@ class EmbeddingModel:
                 raise ValueError("HUGGINGFACE_ACCESS_TOKEN environment variable is not set.")
             
             self.model_name = model_name
-            self.embeddings = HuggingFaceInferenceAPIEmbeddings(
-                model_name=model_name,
-                api_key=os.getenv("HUGGINGFACE_ACCESS_TOKEN")
-            )
+            self.embeddings = HuggingFaceEmbeddings(model_name=model_name)
             logger.info(f"Embedding model '{model_name}' initialized successfully.")
         except ValueError as ve:
             logger.error(f"Initialization error: {ve}")
@@ -34,6 +30,8 @@ class EmbeddingModel:
             if not text or text.strip() == "":
                 raise ValueError("Text to embed cannot be empty or just whitespace.")
             logger.info(f"Embedding text: {text[:30]}...")
+            embeddings = self.embeddings.embed_query(text=text)
+            logger.info(f"Embedding result: {embeddings[:10]}...")
             return self.embeddings.embed_query(text=text)
 
         except ValueError as ve:

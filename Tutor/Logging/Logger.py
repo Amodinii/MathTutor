@@ -15,7 +15,6 @@ logging.basicConfig(
     format=logging_format,
     handlers=[
         logging.FileHandler(log_filepath), # putting log message in the logs file.
-        logging.StreamHandler(sys.stdout) # putting log message in the terminal/stream
     ]
 )
 

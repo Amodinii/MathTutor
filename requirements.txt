@@ -1,5 +1,7 @@
 langchain
 langchain-community
+langchain-huggingface
+langchain_tavily
 langgraph
 langchain-astradb
 langchain-groq
@@ -8,3 +10,5 @@ pillow
 transformers
 beautifulsoup4
 mcp
+anthropic
+ipykernel
