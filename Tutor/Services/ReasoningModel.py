@@ -28,6 +28,8 @@ class ReasoningModel:
                 Respond in JSON with:
                 - "reason": full step-by-step reasoning
                 - "correct_answer": final answer
+
+                Wrap your response exactly in a JSON code block (no commentary)
             '''
 
             human_message = "The mathematical question is {question}, and the documents are {documents}."

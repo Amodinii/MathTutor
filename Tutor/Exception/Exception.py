@@ -17,4 +17,3 @@ class TutorException(Exception):
             f"in file [{self.file_name}], line [{self.lineno}]. \n"
             f"Error Message: [{self.error_message}]"
         )
-
