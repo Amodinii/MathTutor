@@ -8,46 +8,51 @@ from a2a.types import InternalError, TaskState, TextPart
 from a2a.utils import new_agent_text_message, new_task
 from a2a.utils.errors import ServerError
 from Tutor.Logging.Logger import logger
-from Tutor.Agents.ReasoningAgent.Reasoning import run_reasoning
+from Tutor.Agents.ReasoningAgent.Reasoning import build_reasoning_agent
 
 TEACHING_AGENT_URL = "http://localhost:9001/tasks"
 SIMPLIFY_SKILL_ID = "simplify_explanation"
 
 class ReasoningAgentExecutor(AgentExecutor):
     def __init__(self):
-        pass
+        self.agent = None  # We'll assign this on first execution
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         try:
             input_data = ast.literal_eval(context.get_user_input())
             logger.info("[ReasoningAgentExecutor] Received input: %s", input_data)
 
-            # Create or retrieve task
             task = context.current_task or new_task(context.message)
             event_queue.enqueue_event(task)
             updater = TaskUpdater(event_queue, task.id, task.contextId)
 
-            # Step 1: Acknowledge start
             updater.update_status(
                 TaskState.working,
                 new_agent_text_message("Running reasoning process...", task.contextId, task.id),
             )
 
-            # Step 2: Perform reasoning (LangGraph)
-            logger.info("[ReasoningAgentExecutor] Calling LangGraph reasoning flow.")
-            result = await run_reasoning(input_data)
-            parsed = json.loads(result.content.replace('\n', ' ').replace('\r', ' '))
+            # Initialize agent on first run
+            if self.agent is None:
+                logger.info("[ReasoningAgentExecutor] Initializing reasoning agent.")
+                self.agent = await build_reasoning_agent()
 
+            question = input_data.get("question")
+            if not question:
+                raise ValueError("Missing 'question' in input.")
+
+            logger.info("[ReasoningAgentExecutor] Calling reasoning agent.")
+            result = await self.agent(question)
+            parsed = json.loads(result.content.replace('\n', ' ').replace('\r', ' '))
             answer = parsed.get("correct_answer")
             explanation = parsed.get("reason")
             if not answer or not explanation:
                 raise ValueError("Missing answer or explanation in result.")
 
-            # Step 3: Optional simplification via Teaching Agent
+            # Step 3: Simplify explanation (optional)
             teach_payload = {
                 "skill_id": SIMPLIFY_SKILL_ID,
                 "input": {
-                    "question": input_data["question"],
+                    "question": question,
                     "answer": answer,
                     "explanation": explanation,
                     "feedback_history": [],
@@ -67,13 +72,12 @@ class ReasoningAgentExecutor(AgentExecutor):
             except Exception as te:
                 logger.warning(f"[ReasoningAgentExecutor] Teaching Agent call failed: {te}")
 
-            # Step 4: Add result as artifact
+            # Step 4: Add result artifact
             updater.add_artifact(
                 parts=[TextPart(text=json.dumps(parsed, indent=2))],
                 name="reasoning_result",
             )
 
-            # Step 5: Mark task complete
             updater.update_status(
                 TaskState.completed,
                 new_agent_text_message("Reasoning completed successfully.", task.contextId, task.id),
