@@ -14,3 +14,6 @@ anthropic
 ipykernel
 fastapi
 a2a-sdk
+uvicorn
+httpx
+langchain-core
