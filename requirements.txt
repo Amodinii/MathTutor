@@ -13,3 +13,4 @@ mcp
 anthropic
 ipykernel
 fastapi
+a2a-sdk
