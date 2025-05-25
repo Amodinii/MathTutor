@@ -38,14 +38,17 @@ async def simplify_node(state: TeachingState) -> TeachingState:
 
 # ——— Node: Gather User Doubt ———
 async def feedback_node(state: TeachingState) -> TeachingState:
-    try:
-        print("\n🧠 Current Explanation:\n", state["improved_explanation"])
-        user_input = input("🤔 Any more doubts? Type 'done' to finish or ask: ").strip()
-        done = user_input.lower() == "done"
-        history = state["feedback_history"] + ([] if done else [user_input])
-        return {**state, "feedback_history": history, "user_done": done}
-    except Exception as e:
-        raise TutorException(e, sys)
+    # If this came over A2A (via HTTP), just end the loop immediately.
+    # We assume thread_id is always set for HTTP calls.
+    if state.get("thread_id"):
+        return { **state, "user_done": True }
+
+    # Otherwise (local CLI), prompt the user:
+    print("\nCurrent Explanation:\n", state["improved_explanation"])
+    user_input = input("\nAny more doubts? Type 'done' to finish or ask: ").strip()
+    done = user_input.lower() == "done"
+    history = state["feedback_history"] + ([] if done else [user_input])
+    return { **state, "feedback_history": history, "user_done": done }
 
 # ——— Router: Continue or End ———
 def router(state: TeachingState) -> str:
