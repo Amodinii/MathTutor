@@ -1,8 +1,7 @@
 import asyncio
-from Tutor.Agents.Reasoning import build_reasoning_agent
+from Tutor.Agents.ReasoningAgent.Reasoning import build_reasoning_agent
 from Tutor.Agents.Scrape import build_scraping_agent
 from Tutor.Logging.Logger import logger
-
 
 async def main():
     # run_agent = await build_reasoning_agent()
