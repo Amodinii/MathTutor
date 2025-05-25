@@ -1,0 +1,14 @@
+id: teaching_agent
+name: Teaching Agent
+description: |
+  Simplifies mathematical explanations interactively.
+version: "1.0"
+skills:
+  - id: simplify_explanation
+    name: Simplify Explanation
+    description: >
+      Given a question, answer, and existing explanation (plus feedback history),
+      produce an improved explanation in simpler terms.
+endpoint: http://localhost:9001
+authentication:
+  type: none
