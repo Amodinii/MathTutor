@@ -1,6 +1,0 @@
-[
-  {
-    "reason": "To find the area of a rectangle, we need to multiply its length by its width. Given that the length of the rectangle is 8 cm and its width is 3 cm, we can calculate the area as follows:\n\nArea = Length × Width\n= 8 cm × 3 cm\n= 24 cm²\n\nTherefore, the area of the rectangle is 24 square centimeters.",
-    "correct_answer": "24"
-  }
-]

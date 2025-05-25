@@ -1,4 +1,10 @@
 import sys
+import os
+from datetime import datetime
+import ast
+import json
+import httpx
+from uuid import uuid4
 from typing import TypedDict, List, Any, Optional
 from langgraph.graph import StateGraph, END
 from Tutor.MCPClients.VectorDB import VectorDBClient
@@ -6,6 +12,59 @@ from Tutor.MCPClients.WebSearch import WebSearchClient
 from Tutor.Services.ReasoningModel import ReasoningModel
 from Tutor.Logging.Logger import logger
 from Tutor.Exception.Exception import TutorException
+
+def save_response_artifacts(response):
+    # Create folders
+    raw_dir = "Tutor/Agents/ScrapingAgent/response/raw"
+    final_dir = "Tutor/Agents/ScrapingAgent/response/final"
+    os.makedirs(raw_dir, exist_ok=True)
+    os.makedirs(final_dir, exist_ok=True)
+
+    # Timestamp for filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    raw_filename = f"scraping_response_raw_{timestamp}.json"
+    final_filename = f"scraped_questions_{timestamp}.json"
+
+    # Convert full response to JSON
+    response_data = response if isinstance(response, dict) else response.model_dump(mode="json", exclude_none=True)
+
+    # Save full raw response
+    raw_path = os.path.join(raw_dir, raw_filename)
+    with open(raw_path, "w", encoding="utf-8") as f:
+        json.dump(response_data, f, indent=2, ensure_ascii=False)
+    logger.info(f"[A2A Client Scraping] Raw response saved: {raw_path}")
+
+    # Try to extract artifact with questions
+    artifacts = response_data.get("result", {}).get("artifacts", [])
+    extracted = []
+
+    for artifact in artifacts:
+        if artifact.get("name") == "scraped_questions":
+            for part in artifact.get("parts", []):
+                if part.get("kind") == "text":
+                    raw_text = part.get("text", "")
+                    try:
+                        questions = json.loads(raw_text)
+                    except json.JSONDecodeError:
+                        try:
+                            questions = ast.literal_eval(raw_text)
+                        except Exception as e:
+                            logger.warning(f"[A2A Client Scraping] Failed to parse text as JSON or Python literal: {e}")
+                            questions = None
+
+                    if isinstance(questions, list):
+                        extracted.extend(questions)
+                    elif isinstance(questions, dict):
+                        extracted.append(questions)
+
+    if extracted:
+        final_path = os.path.join(final_dir, final_filename)
+        with open(final_path, "w", encoding="utf-8") as f:
+            json.dump(extracted, f, indent=2, ensure_ascii=False)
+        logger.info(f"[A2A Client Scraping] Extracted questions saved: {final_path}")
+        print(f"[A2A Client Scraping] Total questions extracted: {len(extracted)}")
+    else:
+        logger.warning("[A2A Client Scraping] No questions extracted from artifacts.")
 
 # Define state with proper typing
 class AgentState(TypedDict):
@@ -69,9 +128,49 @@ async def retrieve_from_web(state: AgentState) -> AgentState:
             raise TutorException("No web client available", sys)
             
         search_results = await web_client.search(query=question)
-        # print(search_results)
+        result = json.loads(search_results.content[0].text)
         logger.info(f"[Reasoning Agent] Retrieved fallback results from Web Search.")
-        state["documents"] = search_results
+        SCRAPING_AGENT_URL = "http://localhost:10000"
+        SCRAPING_SKILL_ID = "extract_questions"
+        logger.info("[Reasoning Agent] Connecting to scraping agent.")
+        logger.info(f"[Reasoning Agent] Scraping agent URL: {SCRAPING_AGENT_URL} and skill ID: {SCRAPING_SKILL_ID}")
+
+        payload = {
+            "params": {
+                "skill": SCRAPING_SKILL_ID,
+                "message": {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "type": "text",
+                            "text": str(result),
+                        }
+                    ],
+                    "messageId": uuid4().hex,
+                }
+            }
+        }
+
+
+        try:
+            timeout = httpx.Timeout(
+                connect=30.0,
+                read=300.0,
+                write=30.0,
+                pool=30.0
+            )
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                logger.info("[Reasoning Agent] Requesting scraping agent.")
+                response = await client.post(
+                    SCRAPING_AGENT_URL,
+                    json={"skill": SCRAPING_SKILL_ID, **payload},
+                )
+                result_data = response.json()
+                save_response_artifacts(result_data)
+        except Exception as te:
+                logger.warning(f"[ReasoningAgentExecutor] Scraping Agent call failed: {te}")
+
+        state["documents"] = result
         state["has_documents"] = True
         return state
     except Exception as e:

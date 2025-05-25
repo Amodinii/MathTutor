@@ -84,8 +84,12 @@ async def extract_questions(state: ScraperState) -> ScraperState:
         logger.info(f"[Scraping Agent] Extracting questions from {len(raw_pages)} pages.")
         results = []
         for name, html in raw_pages.items():
-            extracted = await model.extract(document=html)
-            results.append(extracted)
+            try:
+                extracted = await model.extract(document=html)
+                results.append(extracted)
+            except Exception as e:
+                logger.warning(f"[Scraping Agent] Skipping document '{name}' due to error: {e}")
+                continue
         state["extracted"] = results
         return state
 
