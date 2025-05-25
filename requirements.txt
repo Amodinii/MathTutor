@@ -17,4 +17,3 @@ a2a-sdk
 uvicorn
 httpx
 langchain-core
-a2a
