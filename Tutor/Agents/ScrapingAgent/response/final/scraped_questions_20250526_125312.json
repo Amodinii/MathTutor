@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What is the area of a 8cm x 3cm rectangle?",
+    "answer": "The area of a 8cm x 3cm rectangle is 24 square centimeters.",
+    "difficulty": "easy",
+    "topic": "geometry"
+  },
+  {
+    "question": "What is the area of a rectangle with a width of 10 yards and a height of 3 yards?",
+    "answer": "The area of the rectangle is 10 x 3 = 30 square yards.",
+    "difficulty": "easy",
+    "topic": "geometry"
+  }
+]

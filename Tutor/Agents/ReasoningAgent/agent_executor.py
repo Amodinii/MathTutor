@@ -1,6 +1,9 @@
 import ast
 import json
 import httpx
+import os
+from datetime import datetime
+from uuid import uuid4
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
@@ -10,12 +13,27 @@ from a2a.utils.errors import ServerError
 from Tutor.Logging.Logger import logger
 from Tutor.Agents.ReasoningAgent.Reasoning import build_reasoning_agent
 
-TEACHING_AGENT_URL = "http://localhost:9001/tasks"
+TEACHING_AGENT_URL = "http://localhost:9001"
 SIMPLIFY_SKILL_ID = "simplify_explanation"
+
+def save_response_artifacts(response_text: str):
+    final_dir = "Tutor/Agents/TeachingAgent/response"
+    os.makedirs(final_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    final_txt_filename = f"simplified_explanation_{timestamp}.txt"
+    final_txt_path = os.path.join(final_dir, final_txt_filename)
+
+    try:
+        with open(final_txt_path, "w", encoding="utf-8") as f_txt:
+            f_txt.write(response_text.strip())
+        logger.info(f"[A2A Client Teaching] Simplified explanation saved as TXT: {final_txt_path}")
+        print(f"[A2A Client Teaching] Simplified Explanation:\n{response_text}")
+    except Exception as e:
+        logger.exception(f"[A2A Client Teaching] Failed to save explanation: {e}")
 
 class ReasoningAgentExecutor(AgentExecutor):
     def __init__(self):
-        self.agent = None  # We'll assign this on first execution
+        self.agent = None
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         try:
@@ -31,7 +49,6 @@ class ReasoningAgentExecutor(AgentExecutor):
                 new_agent_text_message("Running reasoning process...", task.contextId, task.id),
             )
 
-            # Initialize agent on first run
             if self.agent is None:
                 logger.info("[ReasoningAgentExecutor] Initializing reasoning agent.")
                 self.agent = await build_reasoning_agent()
@@ -48,25 +65,41 @@ class ReasoningAgentExecutor(AgentExecutor):
             if not answer or not explanation:
                 raise ValueError("Missing answer or explanation in result.")
 
-            # Step 3: Simplify explanation (optional)
+            # Step 3: Call Teaching Agent
+            payload_query = {
+                "question": question,
+                "answer": answer,
+                "explanation": explanation,
+                "feedback_history": [],
+                "thread_id": input_data.get("thread_id"),
+            }
+
             teach_payload = {
-                "skill_id": SIMPLIFY_SKILL_ID,
-                "input": {
-                    "question": question,
-                    "answer": answer,
-                    "explanation": explanation,
-                    "feedback_history": [],
-                    "thread_id": input_data.get("thread_id"),
+                "skill": SIMPLIFY_SKILL_ID,
+                "message": {
+                    "role": "user",
+                    "parts": [
+                        {
+                            "type": "text",
+                            "text": str(payload_query),
+                        }
+                    ],
+                    "messageId": uuid4().hex,
                 }
             }
 
             try:
                 async with httpx.AsyncClient() as client:
                     logger.info("[ReasoningAgentExecutor] Requesting simplification from Teaching Agent.")
-                    resp = await client.post(TEACHING_AGENT_URL, json=teach_payload)
-                    resp.raise_for_status()
-                    teach_out = resp.json().get("output", {})
-                    simplified = teach_out.get("improved_explanation") or teach_out.get("simplified_explanation")
+                    response = await client.post(
+                    TEACHING_AGENT_URL,
+                    json={"skill": SIMPLIFY_SKILL_ID,**teach_payload},
+                )
+                    print("Obtained Response")
+                    print(response)
+                    response.raise_for_status()
+                    simplified = response.json().get("output", "")
+                    save_response_artifacts(response_text=simplified)
                     if simplified:
                         parsed["reason"] = simplified
             except Exception as te:
@@ -83,7 +116,6 @@ class ReasoningAgentExecutor(AgentExecutor):
                 new_agent_text_message("Reasoning completed successfully.", task.contextId, task.id),
                 final=True,
             )
-
             logger.info(f"[ReasoningAgentExecutor] Task {task.id} completed successfully")
 
         except Exception as e:
