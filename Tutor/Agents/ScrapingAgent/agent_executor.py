@@ -105,7 +105,7 @@ class ScrapingAgentExecutor(AgentExecutor):
                 updater.update_status(
                     TaskState.failed,
                     new_agent_text_message(
-                        f"❌ Scraping failed: {str(e)[:100]}",
+                        f"Scraping failed: {str(e)[:100]}",
                         task.contextId, 
                         task.id
                     ),

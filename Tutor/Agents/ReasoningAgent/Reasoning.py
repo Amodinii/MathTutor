@@ -62,7 +62,7 @@ def save_response_artifacts(response):
         with open(final_path, "w", encoding="utf-8") as f:
             json.dump(extracted, f, indent=2, ensure_ascii=False)
         logger.info(f"[A2A Client Scraping] Extracted questions saved: {final_path}")
-        print(f"[A2A Client Scraping] Total questions extracted: {len(extracted)}")
+        logger.info(f"[A2A Client Scraping] Total questions extracted: {len(extracted)}")
     else:
         logger.warning("[A2A Client Scraping] No questions extracted from artifacts.")
 

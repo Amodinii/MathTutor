@@ -60,8 +60,6 @@ class TeachingAgentExecutor(AgentExecutor):
             logger.info("[TeachingAgentExecutor] Running teaching model.")
             final_state = await run_teaching(user_input)
             improved_explanation = final_state.get("improved_explanation", "[no explanation generated]")
-            print("Got improved explanation")
-            print(improved_explanation)
             # Step 5: Add explanation as artifact
             updater.add_artifact(
                 parts=[TextPart(text=improved_explanation)],

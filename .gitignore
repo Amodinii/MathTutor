@@ -174,3 +174,6 @@ cython_debug/
 .pypirc
 
 test.ipynb
+Tutor/Agents/ReasoningAgent/response/
+Tutor/Agents/ScrapingAgent/response/
+Tutor/Agents/TeachingAgent/response/

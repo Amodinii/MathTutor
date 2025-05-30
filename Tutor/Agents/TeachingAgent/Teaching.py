@@ -25,7 +25,6 @@ model = TeachingModel(model_name="llama3-70b-8192")
 async def simplify_node(state: TeachingState) -> TeachingState:
     try:
         logger.info("[TeachingAgent] simplify_node running...")
-        print("In simplifying")
         improved = await model.explain(
             question=state["question"],
             answer=state["answer"],
@@ -60,7 +59,6 @@ async def run_teaching(input_data: dict) -> dict:
             "improved_explanation": None,
             "user_done": False
         }
-        print("Running the model")
         final_state = await app_runnable.ainvoke(initial_state, config=RunnableConfig())
         return final_state  # contains improved_explanation
     except Exception as e:

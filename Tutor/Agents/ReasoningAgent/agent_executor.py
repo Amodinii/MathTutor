@@ -27,7 +27,7 @@ def save_response_artifacts(response_text: str):
         with open(final_txt_path, "w", encoding="utf-8") as f_txt:
             f_txt.write(response_text.strip())
         logger.info(f"[A2A Client Teaching] Simplified explanation saved as TXT: {final_txt_path}")
-        print(f"[A2A Client Teaching] Simplified Explanation:\n{response_text}")
+        logger.info(f"[A2A Client Teaching] Simplified Explanation:\n{response_text}")
     except Exception as e:
         logger.exception(f"[A2A Client Teaching] Failed to save explanation: {e}")
 
@@ -74,17 +74,19 @@ class ReasoningAgentExecutor(AgentExecutor):
                 "thread_id": input_data.get("thread_id"),
             }
 
-            teach_payload = {
-                "skill": SIMPLIFY_SKILL_ID,
-                "message": {
-                    "role": "user",
-                    "parts": [
-                        {
-                            "type": "text",
-                            "text": str(payload_query),
-                        }
-                    ],
-                    "messageId": uuid4().hex,
+            teach_payload = teach_payload = {
+                "params": {
+                    "skill": SIMPLIFY_SKILL_ID,
+                    "message": {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "type": "text",
+                                "text": json.dumps(payload_query),
+                            }
+                        ],
+                        "messageId": uuid4().hex,
+                    }
                 }
             }
 
@@ -93,12 +95,15 @@ class ReasoningAgentExecutor(AgentExecutor):
                     logger.info("[ReasoningAgentExecutor] Requesting simplification from Teaching Agent.")
                     response = await client.post(
                     TEACHING_AGENT_URL,
-                    json={"skill": SIMPLIFY_SKILL_ID,**teach_payload},
+                    json={"skill": SIMPLIFY_SKILL_ID, **teach_payload}
                 )
-                    print("Obtained Response")
-                    print(response)
-                    response.raise_for_status()
-                    simplified = response.json().get("output", "")
+                    simplified = simplified = (
+                        response.json()
+                        .get("result", {})
+                        .get("artifacts", [])[0]
+                        .get("parts", [])[0]
+                        .get("text", "")
+                    )
                     save_response_artifacts(response_text=simplified)
                     if simplified:
                         parsed["reason"] = simplified
