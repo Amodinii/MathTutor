@@ -2,6 +2,8 @@ import ast
 import json
 import httpx
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from datetime import datetime
 from uuid import uuid4
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -13,7 +15,7 @@ from a2a.utils.errors import ServerError
 from Tutor.Logging.Logger import logger
 from Tutor.Agents.ReasoningAgent.Reasoning import build_reasoning_agent
 
-TEACHING_AGENT_URL = "http://localhost:9001"
+TEACHING_AGENT_URL = os.getenv("TEACHING_AGENT_URL", "http://localhost:9001")   
 SIMPLIFY_SKILL_ID = "simplify_explanation"
 
 def save_response_artifacts(response_text: str):
@@ -92,6 +94,7 @@ class ReasoningAgentExecutor(AgentExecutor):
 
             try:
                 async with httpx.AsyncClient() as client:
+                    logger.info("[ReasoningAgentExecutor] Calling Teaching Agent, on URL: %s", TEACHING_AGENT_URL)
                     logger.info("[ReasoningAgentExecutor] Requesting simplification from Teaching Agent.")
                     response = await client.post(
                     TEACHING_AGENT_URL,

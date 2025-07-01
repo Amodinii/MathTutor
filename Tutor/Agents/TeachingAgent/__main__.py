@@ -4,17 +4,28 @@ from a2a.server.tasks import InMemoryTaskStore
 from Tutor.Agents.TeachingAgent.agent_executor import TeachingAgentExecutor
 from Tutor.Agents.TeachingAgent.card import agent_card
 
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 from starlette.routing import Route
 import uvicorn
 import platform
 
 # Health check endpoint at "/"
 def healthcheck(request):
-    return JSONResponse({
-        "status": "ok",
-        "message": "Teaching Agent is running"
-    })
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Teaching Agent</title>
+    </head>
+    <body style="font-family: sans-serif; padding: 2rem;">
+        <h1> Teaching Agent is Running</h1>
+        <p>You’ve reached the Teaching Agent root endpoint.</p>
+        <p>Try <a href="/status">/status</a> for a JSON response about the teaching agent's status. </p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html, status_code=200)
 
 # Status endpoint at "/status"
 def status(request):

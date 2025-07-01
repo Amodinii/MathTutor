@@ -14,12 +14,12 @@ class VectorDBServer:
         try:
             logger.info("Initializing VectorDB MCP Server...")
             logger.info("Creating VectorStore instance...")
-            self.store = VectorStore(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            self.store = VectorStore(model_name="sentence-transformers/all-mpnet-base-v2")
             logger.info("VectorStore instance created successfully.")
             logger.info("Creating FastMCP instance...")
             self.mcp = FastMCP("vector-db")
             logger.info("FastMCP instance created successfully.")
-            logger.info(f" [VectorDB MCP Server] VectorDB MCP Server initialized with model: sentence-transformers/all-MiniLM-L6-v2")
+            logger.info(f" [VectorDB MCP Server] VectorDB MCP Server initialized with model: sentence-transformers/all-mpnet-base-v2")
         except TutorException as e:
             logger.error(f" [VectorDB MCP Server] Failed to initialize VectorDB MCP Server")
             raise TutorException(e, sys)
