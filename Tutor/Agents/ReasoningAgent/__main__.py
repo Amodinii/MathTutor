@@ -1,5 +1,5 @@
 import uvicorn
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 from starlette.requests import Request
 from starlette.routing import Route
 
@@ -15,7 +15,21 @@ def healthcheck(request: Request):
     return JSONResponse({"status": "ok", "message": "Reasoning Agent is live"})
 
 def root_check(request: Request):
-    return JSONResponse({"status": "ok", "message": "Welcome to the Reasoning Agent!"})
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Reasoning Agent</title>
+    </head>
+    <body style="font-family: sans-serif; padding: 2rem;">
+        <h1> Reasoning Agent is Running</h1>
+        <p>You’ve reached the Reasoning Agent root endpoint.</p>
+        <p>Try <a href="/status">/status</a> for a JSON response about the Reasoning agent's status. </p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html, status_code=200)
 
 
 if __name__ == "__main__":

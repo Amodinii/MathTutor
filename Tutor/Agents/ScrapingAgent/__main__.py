@@ -1,4 +1,5 @@
-import logging
+import os
+from urllib.parse import urlparse
 import click
 import httpx
 import uvicorn
@@ -12,15 +13,26 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from Tutor.Agents.ScrapingAgent.agent_executor import ScrapingAgentExecutor
 from Tutor.Logging.Logger import logger
 
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, HTMLResponse
 from starlette.routing import Route
 
 # Health check endpoint at "/"
 def healthcheck(request):
-    return JSONResponse({
-        "status": "ok",
-        "message": "Scraping Agent is running"
-    })
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Scraping Agent</title>
+    </head>
+    <body style="font-family: sans-serif; padding: 2rem;">
+        <h1> Scraping Agent is Running</h1>
+        <p>You’ve reached the Scraping Agent root endpoint.</p>
+        <p>Try <a href="/status">/status</a> for a JSON response about the scraping agent's status. </p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html, status_code=200)
 
 # Status endpoint at "/status"
 def status(request):
@@ -32,10 +44,15 @@ def status(request):
     })
 
 @click.command()
-@click.option('--host', 'host', default='localhost')
-@click.option('--port', 'port', default=10000)
-def main(host, port):
+def main():
     """Starts the Scraping Agent server."""
+
+    # Read from environment or fallback to default
+    scraping_url = os.getenv("SCRAPING_AGENT_URL", "http://localhost:10000")
+    parsed = urlparse(scraping_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 10000
+
     try:
         # Define agent metadata
         capabilities = AgentCapabilities(

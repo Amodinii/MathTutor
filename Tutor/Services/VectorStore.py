@@ -11,10 +11,11 @@ class VectorStore:
         try:
             self.embedding_model = EmbeddingModel(model_name=model_name)
             self.vector_store = AstraDBVectorStore(
-                collection_name = "tutor",
+                collection_name = "TutorDB",
                 embedding = self.embedding_model,
                 api_endpoint=os.getenv("ASTRA_DB_API_ENDPOINT"),
                 token=os.getenv("ASTRA_DB_TOKEN"),
+                autodetect_collection=True,
             )
             logger.info("Vector store initialized successfully.")
         except Exception as e:

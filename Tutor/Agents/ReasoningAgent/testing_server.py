@@ -61,20 +61,22 @@ def save_response_artifacts(response):
         logger.warning("[A2A Client Reasoning] No result extracted from artifacts.")
 
 
-async def main():
+async def main(question: str):
     timeout = httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)
-
+    REASONING_AGENT_URL = os.getenv("REASONING_AGENT_URL","http://localhost:9002")
+    logger.info(f"[A2A Client Reasoning] Reasoning agent URL: {REASONING_AGENT_URL}")
     async with httpx.AsyncClient(timeout=timeout) as httpx_client:
         try:
             client = await A2AClient.get_client_from_agent_card_url(
-                httpx_client, "http://localhost:9002"
+                httpx_client, REASONING_AGENT_URL
             )
         except Exception as e:
+            print(f"[A2A Client Reasoning] Failed to connect to agent: {e}")
             logger.error(f"[A2A Client Reasoning] Failed to connect to agent: {e}")
             return
 
         question_payload = {
-            "question": "If a rectangle has a length of 8 cm and a width of 3 cm, what is its area?",
+            "question": question,
             "thread_id": "test-thread-001"
         }
 
@@ -104,4 +106,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Taking the question as input from the user
+    question = input("Enter the question")
+    print(f"[A2A Client Reasoning] Question: {question}")
+    asyncio.run(main(question=question))
